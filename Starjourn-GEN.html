@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Starjourn — Generator HTML Version - Copyright SPM2026</title>
+  <style>
+    html,body{height:100%;margin:0;background:#000;color:#ddd;font-family:system-ui,Arial}
+    .app{display:flex;height:100%}
+    .sidebar{width:340px;padding:12px;background:#081018;box-shadow:2px 0 8px rgba(0,0,0,.6);overflow:auto}
+    .main{flex:1;display:flex;align-items:center;justify-content:center;padding:8px}
+    svg{width:100%;height:100%;display:block}
+    label{display:block;margin:8px 0;font-size:13px}
+    input[type=number],input[type=text],select{width:100%}
+    .row{display:flex;gap:8px}
+    .muted{color:#9aa; font-size: 12px;}
+    .control{margin-bottom:8px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="sidebar">
+      <h3>Starjourn Map Generator (HTML Version)</h3>
+      <div class="control">
+        <label>Planet Count <small class="muted">(cells)</small></label>
+        <input id="count" type="number" value="35" min="1" />
+      </div>
+      <div class="control">
+        <label>Columns (0 = auto)</label>
+        <input id="cols" type="number" value="7" min="0" />
+      </div>
+      <div class="control row">
+        <div style="flex:1">
+          <label>Canvas Scale %</label>
+          <input id="scale" type="number" value="100" min="10" />
+        </div>
+        <div style="width:80px">
+          <label>Runs</label>
+          <input id="runs" type="number" value="1" min="1" />
+        </div>
+      </div>
+
+      <div class="control">
+        <label><input id="doGrid" type="checkbox" checked/> Stat Grid Overlay</label>
+        <label><input id="doBG" type="checkbox" checked/> Background</label>
+      </div>
+
+      <div class="control">
+        <strong>Planet Features</strong>
+        <label><input id="land" type="checkbox" checked/> Land</label>
+        <label><input id="city" type="checkbox" checked/> Cities</label>
+        <label><input id="poles" type="checkbox" checked/> Glacial Caps</label>
+        <label><input id="mountains" type="checkbox" checked/> Mountains</label>
+        <label><input id="clouds" type="checkbox" checked/> Clouds</label>
+        <label><input id="moons" type="checkbox" checked/> Moons</label>
+        <label><input id="asteroids" type="checkbox" checked/> Asteroids</label>
+        <label><input id="rings" type="checkbox" checked/> Rings</label>
+        <label><input id="shadow" type="checkbox" checked/> Darkside Shadow</label>
+      </div>
+
+      <div class="control">
+        <strong>Environment</strong>
+        <label><input id="doStars" type="checkbox" checked/> Starfield</label>
+        <label>Stars <input id="starCount" type="range" min="200" max="7600" value="1200"/> <span id="starLabel">1200</span></label>
+        <label><input id="doFields" type="checkbox" checked/> Asteroid Fields</label>
+        <label><input id="doNebula" type="checkbox" checked/> Nebulas</label>
+        <label><input id="doGas" type="checkbox" checked/> Gas Giants</label>
+        <label><input id="doBlackHoles" type="checkbox" checked/> Black Holes</label>
+      </div>
+
+      <div style="margin-top:10px">
+        <button id="generate">Generate</button>
+        <button id="export">Export SVG</button>
+      </div>
+      <p class="muted">Starjourn Generator HTML version 1.0 <br> Copyright SPM 2026</p>
+    </div>
+    <div class="main">
+      <div style="width:100%;height:100%;background:#000">
+        <svg id="canvas" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </div>
+  </div>
+
+
+  <script data-sj-main>
+  // Utilities
+  function rand(min,max){return min + Math.random()*(max-min)}
+  function randInt(min,max){return Math.floor(rand(min,max+1))}
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const canvas = document.getElementById('canvas');
+
+  function clearSVG(){ while(canvas.firstChild) canvas.removeChild(canvas.firstChild); }
+
+  function createSVG(tag,attrs){ const el = document.createElementNS(SVG_NS,tag); if(attrs) for(let k in attrs) el.setAttribute(k,attrs[k]); return el; }
+
+  function color(r,g,b){ return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`; }
+  const SHADOW_OFFSET = 0.0; // fraction of radius to shift darkside 
+
+  function polygonPoints(cx,cy,r,sides, jitter){ let pts=[]; for(let i=0;i<sides;i++){ let a = (Math.PI*2/sides)*i; let rr = r * (1 + (jitter? (Math.random()*jitter- jitter/2) : 0)); let x = cx + Math.cos(a)*rr; let y = cy + Math.sin(a)*rr; pts.push(x + ',' + y);} return pts.join(' ')}
+
+  function createPolygon(parent,cx,cy,r,sides){ const p = createSVG('polygon',{points:polygonPoints(cx,cy,r,sides,0.25)}); parent.appendChild(p); return p; }
+
+  // draw a 5-point star polygon
+  function createStar(parent,x,y,outerR,fill){
+    const innerR = outerR * 0.45;
+    let pts = [];
+    for(let i=0;i<5;i++){
+      let a = -Math.PI/2 + i*(Math.PI*2/5);
+      let ox = x + Math.cos(a)*outerR;
+      let oy = y + Math.sin(a)*outerR;
+      pts.push(ox+','+oy);
+      let ai = a + Math.PI/5;
+      let ix = x + Math.cos(ai)*innerR;
+      let iy = y + Math.sin(ai)*innerR;
+      pts.push(ix+','+iy);
+    }
+    const star = createSVG('polygon',{points:pts.join(' '), fill:fill, stroked:'false'});
+    parent.appendChild(star);
+    return star;
+  }
+
+  // Palettes (ported from original JSX)
+  const PALETTES = [
+    {base:[70,140,220], land:[90,200,150]},
+    {base:[220,170,90], land:[200,120,70]},
+    {base:[100,190,190], land:[155,175,90]},
+    {base:[120,227,227], land:[145,255,80]},
+    {base:[200,80,80], land:[255,130,40]},
+    {base:[190,30,35], land:[190,125,100]},
+    {base:[230,230,127], land:[255,200,60]},
+    {base:[60,115,190], land:[205,220,60]},
+    {base:[25,15,190], land:[70,140,65]},
+    {base:[130,205,130], land:[130,135,95]},
+    {base:[240,80,35], land:[175,125,55]},
+    {base:[255,255,255], land:[200,200,160]},
+    {base:[180,220,255], land:[255,255,255]},
+    {base:[180,220,180], land:[255,245,165]},
+    {base:[70,90,115], land:[126,145,90]},
+    {base:[125,70,90], land:[175,70,100]},
+    {base:[80,80,180], land:[190,220,145]},
+    {base:[130,140,100], land:[150,100,60]},
+    {base:[170,190,210], land:[100,150,172]},
+    {base:[50,100,80], land:[200,230,100]},
+    {base:[10,60,60], land:[90,205,120]},
+    {base:[110,70,150], land:[240,160,220]},
+    {base:[140,100,70], land:[210,200,180]},
+    {base:[45,160,130], land:[165,135,190]},
+    {base:[90,160,180], land:[190,130,80]},
+    {base:[255,160,90], land:[255,215,75]}
+  ];
+
+  // Ensure a <defs> element exists for gradients
+  function ensureDefs(){ let defs = canvas.querySelector('defs'); if(!defs){ defs = createSVG('defs'); canvas.appendChild(defs);} return defs; }
+
+  // Create a rotated linear gradient for darkside shadow
+  function makeShadowGradient(id, rotation){ const defs = ensureDefs(); const g = createSVG('linearGradient',{id:id, x1:'0%', y1:'0%', x2:'100%', y2:'0%'}); g.setAttribute('gradientTransform', `rotate(${rotation})`); const s1 = createSVG('stop',{offset:'0%', 'stop-color':'rgba(0,0,0,0)','stop-opacity':'0'}); const s2 = createSVG('stop',{offset:'100%', 'stop-color':'#000','stop-opacity':'1'}); g.appendChild(s1); g.appendChild(s2); defs.appendChild(g); return g; }
+
+  // Apply a darkside shadow ellipse to a parent group at cx,cy with radius r
+  function applyDarkside(parent, cx, cy, r, rotation=45, opacity=0.75){ const gid = 'sh' + Math.random().toString(36).slice(2); makeShadowGradient(gid, rotation); const sh = createSVG('ellipse',{cx:cx - r*SHADOW_OFFSET, cy:cy, rx:r, ry:r, fill:`url(#${gid})`, opacity:opacity}); parent.appendChild(sh); return sh; }
+
+  // Planet (simplified port)
+  function createPlanet(parent,cx,cy,r,opts){
+    const g = createSVG('g'); parent.appendChild(g);
+    let hasCity = false;
+    let cityRating = 0;
+    // choose palette
+    const palette = PALETTES[randInt(0, PALETTES.length-1)];
+    // base
+    const baseColor = color(palette.base[0], palette.base[1], palette.base[2]);
+    const base = createSVG('circle',{cx:cx,cy:cy,r:r,fill:baseColor}); g.appendChild(base);
+
+    // land
+    const landZones = [];
+    if(opts.land){
+      const landGroup = createSVG('g'); g.appendChild(landGroup);
+      const baseCount = randInt(4,10);
+      for(let i=0;i<baseCount;i++){
+        const px = cx + rand(-r*0.32,r*0.32);
+        const py = cy + rand(-r*0.32,r*0.32);
+        const pr = rand(r*0.08,r*0.5);
+        landZones.push({x:px,y:py,r:pr});
+        // land color based on palette.land with slight random tint
+        const landR = Math.min(255, Math.max(0, palette.land[0] + rand(-30,30)));
+        const landG = Math.min(255, Math.max(0, palette.land[1] + rand(-30,30)));
+        const landB = Math.min(255, Math.max(0, palette.land[2] + rand(-30,30)));
+        const poly = createSVG('polygon',{points:polygonPoints(px,py,pr,randInt(4,6),0.45),fill:color(landR,landG,landB)});
+        landGroup.appendChild(poly);
+      }
+    }
+
+    // mountains
+    if(opts.mountains && landZones.length){
+      const mt = createSVG('g'); g.appendChild(mt);
+      let mtCount = randInt(10,20);
+      for(let i=0;i<mtCount;i++){
+        const zone = landZones[randInt(0,landZones.length-1)];
+        const tx = zone.x + rand(-zone.r*0.8,zone.r*0.8);
+        const ty = zone.y + rand(-zone.r*0.8,zone.r*0.8);
+        if(Math.hypot(tx-zone.x,ty-zone.y) < zone.r*0.9){
+          const tri = createSVG('polygon',{points:polygonPoints(tx,ty,rand(2,12),3,0.1),fill:'#333',opacity:0.5});
+          tri.setAttribute('transform', `rotate(18 ${tx} ${ty})`);
+          mt.appendChild(tri);
+        }
+      }
+    }
+
+    // clouds
+    if(opts.clouds){ const clouds = createSVG('g'); g.appendChild(clouds); for(let i=0;i<randInt(0,12);i++){ const w=rand(20,60),h=rand(8,28); const e = createSVG('ellipse',{cx:cx+rand(-r*0.3,r*0.3),cy:cy+rand(-r*0.65,r*0.65),rx:w,ry:h,fill:'#fff',opacity:rand(0.08,0.22)}); clouds.appendChild(e);} }
+
+    // poles (glacial caps) — place below darkside shadow so shadow overlays them
+    // when enabled, only apply ~66% of planets to have poles for variety
+    if(opts.poles && Math.random() < 0.6666667){
+      const poleContent = createSVG('g');
+      const poleGroup = createSVG('g');
+      poleGroup.appendChild(poleContent);
+
+      const defs = ensureDefs();
+      if(!defs.querySelector('#roughen')){
+        const f = createSVG('filter',{id:'roughen', x:'-50%', y:'-50%', width:'200%', height:'200%'});
+        const turb = createSVG('feTurbulence',{type:'fractalNoise', baseFrequency:'0.8', numOctaves:'2', seed: Math.floor(Math.random()*1000)});
+        const disp = createSVG('feDisplacementMap',{in:'SourceGraphic', scale:'4', xChannelSelector:'R', yChannelSelector:'G'});
+        f.appendChild(turb); f.appendChild(disp); defs.appendChild(f);
+      }
+
+      function addPole(centerY){
+        const poleRadius = r * rand(0.22,0.55);
+        const basePole = createPolygon(poleContent, cx, centerY, poleRadius, randInt(5,10));
+        basePole.setAttribute('fill', '#ffffff');
+        basePole.setAttribute('stroke', 'none');
+        const sy = rand(0.55,0.65);
+        basePole.setAttribute('transform', `translate(${cx} ${centerY}) scale(1 ${sy}) translate(${-cx} ${-centerY})`);
+        basePole.setAttribute('filter', 'url(#roughen)');
+
+        for(let i=0;i<randInt(2,5);i++){
+          const d = createPolygon(
+            poleContent,
+            cx + rand(-poleRadius * 0.2, poleRadius * 0.2),
+            centerY + rand(-poleRadius * 0.1, poleRadius * 0.1),
+            poleRadius * rand(0.4, 0.7),
+            randInt(6, 10)
+          );
+          d.setAttribute('fill', color(rand(220,240), rand(235,250), 255));
+          d.setAttribute('stroke', 'none');
+          const sy2 = rand(0.55,0.75);
+          const rot = rand(-6,6);
+          d.setAttribute('transform', `translate(${cx} ${centerY}) rotate(${rot}) scale(1 ${sy2}) translate(${-cx} ${-centerY})`);
+          d.setAttribute('filter', 'url(#roughen)');
+          d.setAttribute('opacity', rand(0.8,1));
+        }
+      }
+
+      const poleOffset = r * 0.975;
+      addPole(cy + poleOffset);
+      addPole(cy - (poleOffset * 1.052));
+
+      // rotate ~28deg counterclockwise
+      const rot = -28;
+      poleContent.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`);
+
+      const clipId = 'poleclip_' + Math.random().toString(36).slice(2);
+      const cp = createSVG('clipPath',{id:clipId});
+      const clipCircle = createSVG('circle',{cx:cx, cy:cy, r:r});
+      cp.appendChild(clipCircle);
+      defs.appendChild(cp);
+      poleGroup.setAttribute('clip-path', `url(#${clipId})`);
+      g.appendChild(poleGroup);
+    }
+
+    // shadow (gradient darkside) for planet
+    if(opts.shadow){ applyDarkside(g, cx, cy, r*(1.02), 45, 0.82); }
+
+    // rings: create horizontal ellipses, duplicate back+front, clip front with rectangle whose top aligns to equator, then rotate both groups together
+    if(opts.rings && Math.random()<0.4){
+      const ringsBack = createSVG('g');
+      ringsBack.setAttribute('id','RINGS_BACK');
+
+      const shift = 5;
+      const rVal = Math.min(255, palette.land[0] + shift);
+      const gVal = Math.min(255, palette.land[1] + shift);
+      const bVal = Math.min(255, palette.land[2] + shift);
+      const gName = `RingFade_${rVal}_${gVal}_${bVal}`;
+      const defs = ensureDefs();
+      if(!defs.querySelector('#'+gName)){
+        const lg = createSVG('linearGradient',{id:gName, x1:'0%', y1:'0%', x2:'100%', y2:'0%'});
+        lg.appendChild(createSVG('stop',{offset:'0%','stop-color':color(rVal,gVal,bVal)}));
+        lg.appendChild(createSVG('stop',{offset:'100%','stop-color':color(rVal,gVal,bVal)}));
+        defs.appendChild(lg);
+      }
+
+      // pick a single rotation for the whole ring collection (small variation around horizontal)
+      const rot = rand(40,60);
+
+      let maxRx = 0; let maxRy = 0;
+      const numRings = randInt(2,5);
+      for(let i=0;i<numRings;i++){
+        const step = i * 0.2;
+        const rx = r * (0.75 + step);
+        const ry = r * (2.6 + step);
+        if(rx > maxRx) maxRx = rx;
+        if(ry > maxRy) maxRy = ry;
+        // ellipses oriented along horizontal equator (no per-ring rotation)
+        const el = createSVG('ellipse',{cx:cx, cy:cy, rx:rx, ry:ry, fill:'none', stroke:`url(#${gName})`, 'stroke-width': rand(0.55, 8.5), opacity:1});
+        ringsBack.appendChild(el);
+      }
+
+      // place back rings behind the planet base
+      // apply rotation to the back group
+      ringsBack.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`);
+      g.insertBefore(ringsBack, base);
+
+      // duplicate front rings and clip with rectangle that bisects the group along its long axis
+      const ringsFront = ringsBack.cloneNode(true);
+      ringsFront.setAttribute('id','RINGS_CLIP_GROUP');
+      const cpId = 'ringclip_' + Math.random().toString(36).slice(2);
+      const cp = createSVG('clipPath',{id:cpId});
+      const groupWidth = maxRx * 2;
+      const groupHeight = maxRy * 2;
+      // create a rectangle whose top is at the planet equator (cy), full group width, half the height;
+      // rotate the rect around the planet center so it aligns with the rings' major axis
+      const rect = createSVG('rect',{x: cx - groupWidth/2, y: cy, width: groupWidth, height: groupHeight/2});
+      rect.setAttribute('transform', `rotate(${rot + 220} ${cx} ${cy})`);
+      cp.appendChild(rect);
+      defs.appendChild(cp);
+      ringsFront.setAttribute('clip-path', `url(#${cpId})`);
+      // apply same rotation to front group (clone already has transform from clone; reset then set)
+      ringsFront.setAttribute('transform', `rotate(${rot} ${cx} ${cy})`);
+      g.appendChild(ringsFront);
+    }
+
+    // moons (inherit planet palette colors)
+    if(opts.moons){ const moons = createSVG('g'); g.appendChild(moons); const inherit = rand(0.55,0.86); for(let i=0;i<randInt(0,4);i++){ const angle=rand(0,Math.PI*2),dist=r+rand(40,100),mx=cx+Math.cos(angle)*dist,my=cy+Math.sin(angle)*dist,mr=rand(6,15); const baseGray = randInt(150,240); const rCol = Math.min(255, baseGray * (1 - inherit) + palette.land[0] * inherit); const gCol = Math.min(255, baseGray * (1 - inherit) + palette.land[1] * inherit); const bCol = Math.min(255, baseGray * (1 - inherit) + palette.land[2] * inherit); const m = createSVG('circle',{cx:mx,cy:my,r:mr,fill:color(rCol,gCol,bCol),opacity:1}); moons.appendChild(m); if(opts.shadow){ applyDarkside(moons, mx, my, mr, 45, 0.82); } } }
+
+    // asteroids (grayscale)
+    if(opts.asteroids){ const aG=createSVG('g'); g.appendChild(aG); for(let i=0;i<randInt(0,28);i++){ const angle=rand(0,Math.PI*2),dist=r+rand(30,120),ax=cx+Math.cos(angle)*dist,ay=cy+Math.sin(angle)*dist; const rock=createPolygon(aG,ax,ay,rand(2,8),randInt(4,7)); const gVal = randInt(80,180); rock.setAttribute('fill',color(gVal,gVal,gVal)); rock.setAttribute('opacity',rand(0.6,1)); }}
+
+    // city lights
+    if(opts.city && landZones.length && Math.random()<0.6){
+      const cityG=createSVG('g'); g.appendChild(cityG);
+      const zone=landZones[randInt(0,landZones.length-1)];
+      for(let i=0;i<randInt(6,20);i++){ const ox=zone.x+rand(-zone.r/2,zone.r/2), oy=zone.y+rand(-zone.r/2,zone.r/2); const d=rand(1.5,3); const tintRoll = Math.random(); let rL=255,gL=255,bL=255; if(tintRoll<0.25){ gL = rand(180,210); bL = rand(50,100);} else if(tintRoll>0.75){ rL = rand(180,190); gL = rand(230,245);} const dot=createSVG('circle',{cx:ox,cy:oy,r:d,fill:color(rL,gL,bL),opacity:rand(0.25,0.7)}); cityG.appendChild(dot);} 
+      hasCity = true;
+      cityRating = randInt(1,3);
+    }
+
+    return { group: g, hasCity: hasCity, cityRating: cityRating };
+  }
+
+  function createAsteroidField(parent,cx,cy,r){ const g=createSVG('g'); parent.appendChild(g); for(let i=0;i<randInt(40,150);i++){ const angle=rand(0,Math.PI*2),dist=Math.pow(Math.random(),1.75)*r*2.8,x=cx+Math.cos(angle)*dist,y=cy+Math.sin(angle)*dist; const rock=createPolygon(g,x,y,rand(2,10),randInt(4,8)); const gVal = randInt(90,180); rock.setAttribute('fill',color(gVal,gVal,gVal)); rock.setAttribute('opacity',rand(0.6,1)); } return g }
+
+  function createNebula(parent,cx,cy,r){ const g=createSVG('g'); parent.appendChild(g); const baseR=randInt(120,255), baseG=randInt(50,200), baseB=randInt(120,255); for(let l=0;l<randInt(3,6);l++){ for(let i=0;i<randInt(12,25);i++){ const angle=rand(0,Math.PI*2),dist=Math.pow(Math.random(),0.7)*r*2.5,x=cx+Math.cos(angle)*dist,y=cy+Math.sin(angle)*dist,w=rand(80,200),h=rand(60,160); const e=createSVG('ellipse',{cx:x,cy:y,rx:w,ry:h,fill:color(Math.min(255,baseR+rand(-50,50)),Math.min(255,baseG+rand(-50,50)),Math.min(255,baseB+rand(-50,50))),opacity:rand(0.04,0.12)}); e.setAttribute('transform',`rotate(${rand(-30,30)} ${x} ${y})`); g.appendChild(e);} }
+    // core slightly more visible
+    const coreR=r*rand(0.2,0.9); const core=createSVG('circle',{cx:cx,cy:cy,r:coreR,fill:color(Math.min(255,baseR+60),Math.min(255,baseG+60),Math.min(255,baseB+60)),opacity:rand(0.01,0.05)}); g.appendChild(core);
+    for(let s=0;s<randInt(10,45);s++){ const sz=rand(2,6.5); const star=createSVG('circle',{cx:cx+rand(-r,r),cy:cy+rand(-r,r),r:sz,fill:color(Math.min(255,baseR+80),Math.min(255,baseG+80),Math.min(255,baseB+80)),opacity:rand(0.6,1)}); g.appendChild(star);} 
+    // overall nebula transparency slightly increased
+    g.setAttribute('opacity', rand(0.18,0.36));
+    return g }
+
+  
+  function createBlackHole(parent, cx, cy, r) {
+    const g = createSVG('g'); parent.appendChild(g);
+
+    // 1. CHOOSE A SMALLER SIZE FOR THE CORE AND ACCRETION LAYER
+    // Adjust the 0.55 factor to change how tiny the actual black circle is
+    const coreR = r * 0.55; 
+
+    // Create the stepping dark background layers using the new core size
+    for (let i = 0; i < 9; i++) { 
+        const t = i / 9; 
+        const size = coreR * (1 + t * 0.5); 
+        const s = createSVG('circle', { cx: cx, cy: cy, r: size, fill: '#111', opacity: 0.35 * (1 - t) }); 
+        g.appendChild(s); 
+    }    
+    
+    // Choose a stroke color and a slightly lighter aura color
+    const strokeR = randInt(100, 255), strokeG = randInt(100, 255), strokeB = randInt(100, 255);
+    const auraR = Math.min(255, strokeR + 60), auraG = Math.min(255, strokeG + 60), auraB = Math.min(255, strokeB + 60);
+
+    const defs = ensureDefs();
+    // Per-instance aura gradient
+    const auraId = 'bhAura_' + Math.random().toString(36).slice(2);
+    const rg = createSVG('radialGradient', { id: auraId, cx: '50%', cy: '50%', r: '50%', fx: '50%', fy: '50%' });
+    rg.appendChild(createSVG('stop', { offset: '0%', 'stop-color': color(auraR, auraG, auraB), 'stop-opacity': '0.5' }));
+    rg.appendChild(createSVG('stop', { offset: '60%', 'stop-color': color(auraR, auraG, auraB), 'stop-opacity': '0.18' }));
+    rg.appendChild(createSVG('stop', { offset: '100%', 'stop-color': color(auraR, auraG, auraB), 'stop-opacity': '0' }));
+    defs.appendChild(rg);
+
+    // Create/ensure a subtle roughen filter (turbulence + displacement)
+    if (!defs.querySelector('#roughen')) {
+        const f = createSVG('filter', { id: 'roughen', x: '-50%', y: '-50%', width: '200%', height: '200%' });
+        const turb = createSVG('feTurbulence', { type: 'fractalNoise', baseFrequency: '0.6', numOctaves: '2', seed: Math.floor(Math.random() * 1000) });
+        const disp = createSVG('feDisplacementMap', { in: 'SourceGraphic', scale: '4', xChannelSelector: 'R', yChannelSelector: 'G' });
+        f.appendChild(turb); f.appendChild(disp); defs.appendChild(f);
+    }
+
+    // 2. THE AURAS (These still use the original 'r' to stretch far across the numbers)
+    const auraRot = rand(-42.5, 12.5);
+    const aura1 = createSVG('ellipse', { cx: cx, cy: cy, rx: r * 2.6, ry: r * 1.3, fill: `url(#${auraId})`, opacity: 0.9 });
+    aura1.setAttribute('transform', `rotate(${auraRot} ${cx} ${cy})`);
+    aura1.setAttribute('filter', 'url(#roughen)'); g.appendChild(aura1);
+
+    const aura2 = createSVG('ellipse', { cx: cx, cy: cy, rx: r * 2.2, ry: r * 1.0, fill: `url(#${auraId})`, opacity: 0.8 });
+    aura2.setAttribute('transform', `rotate(${90 + auraRot} ${cx} ${cy})`);
+    aura2.setAttribute('filter', 'url(#roughen)'); g.appendChild(aura2);
+
+    // 3. MAIN CORE (This now uses the new smaller coreR size)
+    const core = createSVG('circle', { cx: cx, cy: cy, r: coreR, fill: '#000', stroke: color(strokeR, strokeG, strokeB), 'stroke-width': 2.5 }); 
+    g.appendChild(core); 
+    
+    return g;
+}
+
+
+  function createGasGiant(parent,cx,cy,r,opts){ const g=createSVG('g'); parent.appendChild(g); const rr=r*rand(1.61,1.7);
+    const palette = PALETTES[randInt(0, PALETTES.length-1)];
+    const baseColor = color(palette.base[0], palette.base[1], palette.base[2]);
+    const base=createSVG('circle',{cx:cx,cy:cy,r:rr,fill:baseColor}); g.appendChild(base);
+    const clip = createSVG('clipPath'); const cid='mask'+Math.random().toString(36).slice(2); clip.setAttribute('id',cid); const maskCircle=createSVG('circle',{cx:cx,cy:cy,r:rr}); clip.appendChild(maskCircle); const defs = ensureDefs(); defs.appendChild(clip); const bandGroup=createSVG('g'); bandGroup.setAttribute('clip-path',`url(#${cid})`);
+    for(let i=0;i<randInt(24,40);i++){ const t=i/(randInt(24,40)-1); const lat=(t-0.5)*2; const yOffset=Math.sin(lat*Math.PI*0.5)*rr; const h=rand(rr*0.2,rr*0.45);
+      // mix base and land for bands
+      const mix = Math.random();
+      let rC,gC,bC;
+      if(mix < 0.33){ rC = palette.base[0]*0.6; gC = palette.base[1]*0.6; bC = palette.base[2]*0.6; }
+      else if(mix < 0.66){ rC = palette.base[0]; gC = palette.base[1]; bC = palette.base[2]; }
+      else { rC = (palette.base[0] + palette.land[0]) * 0.5; gC = (palette.base[1] + palette.land[1]) * 0.5; bC = (palette.base[2] + palette.land[2]) * 0.5; }
+      const rect=createSVG('rect',{x:cx-rr,y:cy+yOffset-h/2,width:rr*2,height:h,fill:color(rC,gC,bC),opacity:rand(0.25,0.85)});
+      rect.setAttribute('transform',`rotate(${rand(-2,4)} ${cx} ${cy})`); bandGroup.appendChild(rect);
+    }
+    g.appendChild(bandGroup);
+    if(opts.shadow){ applyDarkside(g, cx, cy, rr, 45, 0.82); } return g }
+
+  function addGlobalGrid(parent,cols,rows){ const group=createSVG('g'); parent.appendChild(group); const CELL_SIZE=420; const startX=150 + CELL_SIZE*0.5; const startY=150 + CELL_SIZE*0.5; for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const cx=startX + c*CELL_SIZE; const cy=startY + r*CELL_SIZE; const rect=createSVG('rect',{x:cx - CELL_SIZE/2, y:cy - CELL_SIZE/2, width:CELL_SIZE, height:CELL_SIZE, fill:'none', stroke:'#fff', 'stroke-width':1.2, opacity:0.28}); group.appendChild(rect);} } return group }
+
+  function addCellStats(parent,cols,rows,cellTypes,cellHasCity,cellCityRating){ const CELL_SIZE=420; const startX=150 + CELL_SIZE*0.5; const startY=150 + CELL_SIZE*0.5; for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const index=r*cols+c; const cx=startX + c*CELL_SIZE; const cy=startY + r*CELL_SIZE; const rolls = [randInt(1,9),randInt(1,9),randInt(1,9),randInt(1,9)]; const fontSize=48; const white='#ffffff'; // four sides
+        const t1=createSVG('text',{x:cx, y:cy - CELL_SIZE*0.4125, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t1.textContent=rolls[0]; parent.appendChild(t1);
+        const t2=createSVG('text',{x:cx, y:cy + CELL_SIZE*0.4125, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t2.textContent=rolls[1]; parent.appendChild(t2);
+        const t3=createSVG('text',{x:cx - CELL_SIZE*0.4125, y:cy, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t3.textContent=rolls[2]; parent.appendChild(t3);
+        const t4=createSVG('text',{x:cx + CELL_SIZE*0.4125, y:cy, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t4.textContent=rolls[3]; parent.appendChild(t4);
+
+        // City star rating in upper-left quadrant center
+        if(cellHasCity && cellHasCity[index]){
+          const rating = (cellCityRating && cellCityRating[index]) ? cellCityRating[index] : 1;
+          const starX = cx - CELL_SIZE * 0.25;
+          const starY = cy - CELL_SIZE * 0.25;
+          const outer = 14;
+          for(let s=0;s<rating;s++){
+            const offsetX = s * (outer * 2.2);
+            createStar(parent, starX - offsetX, starY, outer, '#bffe3c');
+          }
+        }
+      }}}
+
+  // Main runner
+  function runOnce(settings){
+    clearSVG();
+    const spacing = 420; const cols = (settings.columns>0)?settings.columns:Math.ceil(Math.sqrt(settings.count));
+    const rows = Math.ceil(settings.count / cols);
+    const width = 150*2 + cols*spacing; const height = 150*2 + rows*spacing;
+    canvas.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+    // background
+    if(settings.doBG){ const bg=createSVG('rect',{x:0,y:0,width:width,height:height,fill:'#000'}); canvas.appendChild(bg);}    
+
+    // starfield should be behind planets but above the background
+    if(settings.doStars){ const starG=createSVG('g'); canvas.appendChild(starG); for(let s=0;s<settings.starCount;s++){ const x=rand(0,width), y=rand(0,height), sz=rand(0.5,3); const star=createSVG('circle',{cx:x,cy:y,r:sz,fill:'#fff',opacity:rand(0.6,1)}); starG.appendChild(star);} }
+
+    const master = createSVG('g'); canvas.appendChild(master);
+
+    const cellTypes = [];
+    const cellHasCity = [];
+    const cellCityRating = [];
+    for(let i=0;i<settings.count;i++){
+      const col = i % cols; const row = Math.floor(i/cols);
+      const cx = 150 + col*spacing + spacing*0.5; const cy = 150 + row*spacing + spacing*0.5;
+      const roll=Math.random();
+      let obj=null; let typeTag='planet';
+      const nebulaChance = settings.nebula/100; const fieldChance=settings.fields/100; const gasChance=settings.gas/100; const blackHoleChance=settings.blackholes/100;
+      let cumulative=0;
+      if(settings.doNebula && roll < (cumulative += nebulaChance)) { obj = createNebula(master,cx,cy, rand(80,140)); typeTag='nebula'; cellHasCity.push(false); cellCityRating.push(0); }
+      else if(settings.doFields && roll < (cumulative += fieldChance)) { obj = createAsteroidField(master,cx,cy, rand(60,110)); typeTag='asteroid'; cellHasCity.push(false); cellCityRating.push(0); }
+      else if(settings.doGas && roll < (cumulative += gasChance)) { obj = createGasGiant(master,cx,cy, rand(50,90), {shadow:settings.shadow}); typeTag='gasgiant'; cellHasCity.push(false); cellCityRating.push(0); }
+      else if(settings.doBlackHoles && roll < (cumulative += blackHoleChance)) { obj = createBlackHole(master,cx,cy, rand(80,160)); typeTag='blackhole'; cellHasCity.push(false); cellCityRating.push(0); }
+      else { const res = createPlanet(master,cx,cy, rand(50,90), settings); typeTag='planet'; // createPlanet returns object with city info
+        cellHasCity.push(res.hasCity === true);
+        cellCityRating.push(res.cityRating || 0);
+      }
+      cellTypes.push(typeTag);
+    }
+
+    if(settings.doGrid){ const grid = addGlobalGrid(canvas,cols,rows); addCellStats(canvas,cols,rows,cellTypes,cellHasCity,cellCityRating); }
+
+    // scale master group
+    const userScale = settings.scale||100; master.setAttribute('transform',`scale(${userScale/100})`);
+  }
+
+  // UI wiring
+  document.getElementById('starCount').addEventListener('input',e=>document.getElementById('starLabel').textContent=e.target.value);
+  document.getElementById('generate').addEventListener('click',()=>{
+    const settings = {
+      count: parseInt(document.getElementById('count').value,10)||35,
+      columns: parseInt(document.getElementById('cols').value,10)||7,
+      scale: parseFloat(document.getElementById('scale').value)||100,
+      doGrid: document.getElementById('doGrid').checked,
+      doBG: document.getElementById('doBG').checked,
+      land: document.getElementById('land').checked,
+      city: document.getElementById('city').checked,
+      poles: document.getElementById('poles').checked,
+      mountains: document.getElementById('mountains').checked,
+      clouds: document.getElementById('clouds').checked,
+      moons: document.getElementById('moons').checked,
+      asteroids: document.getElementById('asteroids').checked,
+      rings: document.getElementById('rings').checked,
+      shadow: document.getElementById('shadow').checked,
+      doStars: document.getElementById('doStars').checked,
+      starCount: parseInt(document.getElementById('starCount').value,10)||1200,
+      doFields: document.getElementById('doFields').checked,
+      fields: 22,
+      doNebula: document.getElementById('doNebula').checked,
+      nebula: 20,
+      doGas: document.getElementById('doGas').checked,
+      gas: 5,
+      doBlackHoles: document.getElementById('doBlackHoles').checked,
+      blackholes: 3
+    };
+
+    const runs = parseInt(document.getElementById('runs').value,10)||1;
+    for(let i=0;i<runs;i++) runOnce(settings);
+  });
+
+  document.getElementById('export').addEventListener('click',()=>{
+    const svgData = new XMLSerializer().serializeToString(canvas);
+    const blob = new Blob([svgData],{type:'image/svg+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'Starjourn-Stellar.svg'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  // initial generate
+  document.getElementById('generate').click();
+  </script>
+</body>
+</html>
