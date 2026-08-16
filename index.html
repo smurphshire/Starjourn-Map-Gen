@@ -157,7 +157,7 @@
   function makeShadowGradient(id, rotation){ const defs = ensureDefs(); const g = createSVG('linearGradient',{id:id, x1:'0%', y1:'0%', x2:'100%', y2:'0%'}); g.setAttribute('gradientTransform', `rotate(${rotation})`); const s1 = createSVG('stop',{offset:'0%', 'stop-color':'rgba(0,0,0,0)','stop-opacity':'0'}); const s2 = createSVG('stop',{offset:'100%', 'stop-color':'#000','stop-opacity':'1'}); g.appendChild(s1); g.appendChild(s2); defs.appendChild(g); return g; }
 
   // Apply a darkside shadow ellipse to a parent group at cx,cy with radius r
-  function applyDarkside(parent, cx, cy, r, rotation=45, opacity=0.75){ const gid = 'sh' + Math.random().toString(36).slice(2); makeShadowGradient(gid, rotation); const sh = createSVG('ellipse',{cx:cx - r*SHADOW_OFFSET, cy:cy, rx:r, ry:r, fill:`url(#${gid})`, opacity:opacity}); parent.appendChild(sh); return sh; }
+  function applyDarkside(parent, cx, cy, r, rotation=28, opacity=0.88){ const gid = 'sh' + Math.random().toString(36).slice(2); makeShadowGradient(gid, rotation); const sh = createSVG('ellipse',{cx:cx - r*SHADOW_OFFSET, cy:cy, rx:r, ry:r, fill:`url(#${gid})`, opacity:opacity}); parent.appendChild(sh); return sh; }
 
   // Planet (simplified port)
   function createPlanet(parent,cx,cy,r,opts){
@@ -208,8 +208,8 @@
     // clouds
     if(opts.clouds){ const clouds = createSVG('g'); g.appendChild(clouds); for(let i=0;i<randInt(0,12);i++){ const w=rand(20,60),h=rand(8,28); const e = createSVG('ellipse',{cx:cx+rand(-r*0.3,r*0.3),cy:cy+rand(-r*0.65,r*0.65),rx:w,ry:h,fill:'#fff',opacity:rand(0.08,0.22)}); clouds.appendChild(e);} }
 
-    // poles (glacial caps) — place below darkside shadow so shadow overlays them
-    // when enabled, only apply ~66% of planets to have poles for variety
+    // poles (glacial caps) 
+    // when enabled, only 66% of planets to have 
     if(opts.poles && Math.random() < 0.6666667){
       const poleContent = createSVG('g');
       const poleGroup = createSVG('g');
@@ -268,7 +268,7 @@
     }
 
     // shadow (gradient darkside) for planet
-    if(opts.shadow){ applyDarkside(g, cx, cy, r*(1.02), 45, 0.82); }
+    if(opts.shadow){ applyDarkside(g, cx, cy, r*(1.02), 28, 0.88); }
 
     // rings: create horizontal ellipses, duplicate back+front, clip front with rectangle whose top aligns to equator, then rotate both groups together
     if(opts.rings && Math.random()<0.4){
@@ -295,8 +295,8 @@
       const numRings = randInt(2,5);
       for(let i=0;i<numRings;i++){
         const step = i * 0.2;
-        const rx = r * (0.75 + step);
-        const ry = r * (2.6 + step);
+        const rx = r * (0.35 + step);
+        const ry = r * (1.6 + step);
         if(rx > maxRx) maxRx = rx;
         if(ry > maxRy) maxRy = ry;
         // ellipses oriented along horizontal equator (no per-ring rotation)
@@ -314,8 +314,8 @@
       ringsFront.setAttribute('id','RINGS_CLIP_GROUP');
       const cpId = 'ringclip_' + Math.random().toString(36).slice(2);
       const cp = createSVG('clipPath',{id:cpId});
-      const groupWidth = maxRx * 2;
-      const groupHeight = maxRy * 2;
+      const groupWidth = maxRx * 6;
+      const groupHeight = maxRy * 1.5;
       // create a rectangle whose top is at the planet equator (cy), full group width, half the height;
       // rotate the rect around the planet center so it aligns with the rings' major axis
       const rect = createSVG('rect',{x: cx - groupWidth/2, y: cy, width: groupWidth, height: groupHeight/2});
@@ -329,7 +329,7 @@
     }
 
     // moons (inherit planet palette colors)
-    if(opts.moons){ const moons = createSVG('g'); g.appendChild(moons); const inherit = rand(0.55,0.86); for(let i=0;i<randInt(0,4);i++){ const angle=rand(0,Math.PI*2),dist=r+rand(40,100),mx=cx+Math.cos(angle)*dist,my=cy+Math.sin(angle)*dist,mr=rand(6,15); const baseGray = randInt(150,240); const rCol = Math.min(255, baseGray * (1 - inherit) + palette.land[0] * inherit); const gCol = Math.min(255, baseGray * (1 - inherit) + palette.land[1] * inherit); const bCol = Math.min(255, baseGray * (1 - inherit) + palette.land[2] * inherit); const m = createSVG('circle',{cx:mx,cy:my,r:mr,fill:color(rCol,gCol,bCol),opacity:1}); moons.appendChild(m); if(opts.shadow){ applyDarkside(moons, mx, my, mr, 45, 0.82); } } }
+    if(opts.moons){ const moons = createSVG('g'); g.appendChild(moons); const inherit = rand(0.55,0.86); for(let i=0;i<randInt(0,4);i++){ const angle=rand(0,Math.PI*2),dist=r+rand(40,100),mx=cx+Math.cos(angle)*dist,my=cy+Math.sin(angle)*dist,mr=rand(6,15); const baseGray = randInt(150,240); const rCol = Math.min(255, baseGray * (1 - inherit) + palette.land[0] * inherit); const gCol = Math.min(255, baseGray * (1 - inherit) + palette.land[1] * inherit); const bCol = Math.min(255, baseGray * (1 - inherit) + palette.land[2] * inherit); const m = createSVG('circle',{cx:mx,cy:my,r:mr,fill:color(rCol,gCol,bCol),opacity:1}); moons.appendChild(m); if(opts.shadow){ applyDarkside(moons, mx, my, mr, 28, 0.88); } } }
 
     // asteroids (grayscale)
     if(opts.asteroids){ const aG=createSVG('g'); g.appendChild(aG); for(let i=0;i<randInt(0,28);i++){ const angle=rand(0,Math.PI*2),dist=r+rand(30,120),ax=cx+Math.cos(angle)*dist,ay=cy+Math.sin(angle)*dist; const rock=createPolygon(aG,ax,ay,rand(2,8),randInt(4,7)); const gVal = randInt(80,180); rock.setAttribute('fill',color(gVal,gVal,gVal)); rock.setAttribute('opacity',rand(0.6,1)); }}
@@ -411,44 +411,211 @@
 }
 
 
-  function createGasGiant(parent,cx,cy,r,opts){ const g=createSVG('g'); parent.appendChild(g); const rr=r*rand(1.61,1.7);
+  function createGasGiant(parent,cx,cy,r,opts){ 
+    const g=createSVG('g'); 
+    parent.appendChild(g); 
+    const rr=r*rand(1.61,1.7);
     const palette = PALETTES[randInt(0, PALETTES.length-1)];
     const baseColor = color(palette.base[0], palette.base[1], palette.base[2]);
-    const base=createSVG('circle',{cx:cx,cy:cy,r:rr,fill:baseColor}); g.appendChild(base);
-    const clip = createSVG('clipPath'); const cid='mask'+Math.random().toString(36).slice(2); clip.setAttribute('id',cid); const maskCircle=createSVG('circle',{cx:cx,cy:cy,r:rr}); clip.appendChild(maskCircle); const defs = ensureDefs(); defs.appendChild(clip); const bandGroup=createSVG('g'); bandGroup.setAttribute('clip-path',`url(#${cid})`);
-    for(let i=0;i<randInt(24,40);i++){ const t=i/(randInt(24,40)-1); const lat=(t-0.5)*2; const yOffset=Math.sin(lat*Math.PI*0.5)*rr; const h=rand(rr*0.2,rr*0.45);
-      // mix base and land for bands
-      const mix = Math.random();
-      let rC,gC,bC;
-      if(mix < 0.33){ rC = palette.base[0]*0.6; gC = palette.base[1]*0.6; bC = palette.base[2]*0.6; }
-      else if(mix < 0.66){ rC = palette.base[0]; gC = palette.base[1]; bC = palette.base[2]; }
-      else { rC = (palette.base[0] + palette.land[0]) * 0.5; gC = (palette.base[1] + palette.land[1]) * 0.5; bC = (palette.base[2] + palette.land[2]) * 0.5; }
-      const rect=createSVG('rect',{x:cx-rr,y:cy+yOffset-h/2,width:rr*2,height:h,fill:color(rC,gC,bC),opacity:rand(0.25,0.85)});
-      rect.setAttribute('transform',`rotate(${rand(-2,4)} ${cx} ${cy})`); bandGroup.appendChild(rect);
+    const base=createSVG('circle',{cx:cx,cy:cy,r:rr,fill:baseColor}); 
+    g.appendChild(base);
+    
+    const clip = createSVG('clipPath'); 
+    const cid='mask'+Math.random().toString(36).slice(2); 
+    clip.setAttribute('id',cid); 
+    const maskCircle=createSVG('circle',{cx:cx,cy:cy,r:rr}); 
+    clip.appendChild(maskCircle); 
+    const defs = ensureDefs(); 
+    defs.appendChild(clip); 
+    
+    const bandGroup=createSVG('g'); 
+    bandGroup.setAttribute('clip-path',`url(#${cid})`);
+    
+    // Planet Bands
+    for(let i=0;i<randInt(24,40);i++){ 
+        const t=i/(randInt(24,40)-1); 
+        const lat=(t-0.5)*2; 
+        const yOffset=Math.sin(lat*Math.PI*0.5)*rr; 
+        const h=rand(rr*0.2,rr*0.45);
+        
+        const mix = Math.random();
+        let rC,gC,bC;
+        if(mix < 0.33){ rC = palette.base[0]*0.6; gC = palette.base[1]*0.6; bC = palette.base[2]*0.6; }
+        else if(mix < 0.66){ rC = palette.base[0]; gC = palette.base[1]; bC = palette.base[2]; }
+        else { rC = (palette.base[0] + palette.land[0]) * 0.5; gC = (palette.base[1] + palette.land[1]) * 0.5; bC = (palette.base[2] + palette.land[2]) * 0.5; }
+        
+        const rect=createSVG('rect',{x:cx-rr,y:cy+yOffset-h/2,width:rr*2,height:h,fill:color(rC,gC,bC),opacity:rand(0.25,0.85)});
+        rect.setAttribute('transform',`rotate(${rand(-2,4)} ${cx} ${cy})`); 
+        bandGroup.appendChild(rect);
     }
+    
+    // =========================================================
+    // STORMS INTEGRATION
+    // =========================================================
+    if (Math.random() < 0.6){
+        const stormCount = 1 + randInt(1, 3);
+        
+        for (let s = 0; s < stormCount; s++){
+            const w = rr * rand(0.25, 0.5);
+            const h = w * rand(0.4, 0.7);
+            
+            const sx = cx + rand(-rr * 0.4, rr * 0.4);
+            const sy = cy + rand(-rr * 0.3, rr * 0.3);
+            
+            // Calculate randomized storm colors based on the current palette
+            const stormR = Math.min(255, palette.base[0] + rand(60, 120));
+            const stormG = Math.min(255, palette.base[1] + rand(-20, 60));
+            const stormB = Math.max(0, palette.base[2] - rand(40, 80));
+            const stormColor = color(stormR, stormG, stormB);
+            
+            // In SVGs, opacity is defined from 0.0 to 1.0 (converting your 50-70 range)
+            const stormOpacity = rand(50, 70) / 100;
+            
+            // Create SVG Ellipse for the storm
+            const storm = createSVG('ellipse', {
+                cx: sx,
+                cy: sy,
+                rx: w / 2,
+                ry: h / 2,
+                fill: stormColor,
+                opacity: stormOpacity
+            });
+            
+            bandGroup.appendChild(storm);
+        }
+    }
+    
     g.appendChild(bandGroup);
-    if(opts.shadow){ applyDarkside(g, cx, cy, rr, 45, 0.82); } return g }
+    
+    if(opts.shadow){ 
+        applyDarkside(g, cx, cy, rr, 28, 0.88); 
+    } 
+    
+    return g;
+}
+
 
   function addGlobalGrid(parent,cols,rows){ const group=createSVG('g'); parent.appendChild(group); const CELL_SIZE=420; const startX=150 + CELL_SIZE*0.5; const startY=150 + CELL_SIZE*0.5; for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const cx=startX + c*CELL_SIZE; const cy=startY + r*CELL_SIZE; const rect=createSVG('rect',{x:cx - CELL_SIZE/2, y:cy - CELL_SIZE/2, width:CELL_SIZE, height:CELL_SIZE, fill:'none', stroke:'#fff', 'stroke-width':1.2, opacity:0.28}); group.appendChild(rect);} } return group }
 
-  function addCellStats(parent,cols,rows,cellTypes,cellHasCity,cellCityRating){ const CELL_SIZE=420; const startX=150 + CELL_SIZE*0.5; const startY=150 + CELL_SIZE*0.5; for(let r=0;r<rows;r++){ for(let c=0;c<cols;c++){ const index=r*cols+c; const cx=startX + c*CELL_SIZE; const cy=startY + r*CELL_SIZE; const rolls = [randInt(1,9),randInt(1,9),randInt(1,9),randInt(1,9)]; const fontSize=48; const white='#ffffff'; // four sides
-        const t1=createSVG('text',{x:cx, y:cy - CELL_SIZE*0.4125, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t1.textContent=rolls[0]; parent.appendChild(t1);
-        const t2=createSVG('text',{x:cx, y:cy + CELL_SIZE*0.4125, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t2.textContent=rolls[1]; parent.appendChild(t2);
-        const t3=createSVG('text',{x:cx - CELL_SIZE*0.4125, y:cy, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t3.textContent=rolls[2]; parent.appendChild(t3);
-        const t4=createSVG('text',{x:cx + CELL_SIZE*0.4125, y:cy, 'text-anchor':'middle', 'font-size':fontSize, fill:white, opacity:0.73}); t4.textContent=rolls[3]; parent.appendChild(t4);
+  function addCellStats(parent,cols,rows,cellTypes,cellHasCity,cellCityRating){
+    const CELL_SIZE=420;
+    const startX=150 + CELL_SIZE*0.5;
+    const startY=150 + CELL_SIZE*0.5;
 
-        // City star rating in upper-left quadrant center
-        if(cellHasCity && cellHasCity[index]){
-          const rating = (cellCityRating && cellCityRating[index]) ? cellCityRating[index] : 1;
-          const starX = cx - CELL_SIZE * 0.25;
-          const starY = cy - CELL_SIZE * 0.25;
-          const outer = 14;
-          for(let s=0;s<rating;s++){
-            const offsetX = s * (outer * 2.2);
-            createStar(parent, starX - offsetX, starY, outer, '#bffe3c');
-          }
+    // Helper functions from your JSX code
+    function plusRoll(type, hasCity){
+        if (type === "planet"){
+            if (hasCity) return randInt(1, 3);
+            return randInt(0, 3);
         }
-      }}}
+        if (type === "asteroid") return randInt(0, 1);
+        if (type === "nebula") return randInt(0, 0);
+        if (type === "blackhole") return 0;
+        if (type === "gasgiant") return randInt(0, 1);
+        return randInt(0, 3);
+    }
+
+    function minusRoll(type, hasCity){
+        if (type === "planet"){
+            if (hasCity) return randInt(1, 3);
+            return randInt(1, 3);
+        }
+        if (type === "asteroid") return randInt(1, 3);
+        if (type === "nebula") return randInt(1, 2);
+        if (type === "blackhole") return randInt(4, 5);
+        if (type === "gasgiant") return randInt(1, 3);
+        return randInt(1, 3);
+    }
+
+    for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+            const index=r*cols+c;
+            const cx=startX + c*CELL_SIZE;
+            const cy=startY + r*CELL_SIZE;
+            
+            const type = cellTypes ? cellTypes[index] : "planet";
+            const hasCity = cellHasCity ? cellHasCity[index] : false;
+
+            const rolls = [randInt(1,9),randInt(1,9),randInt(1,9),randInt(1,9)];
+            const fontSize=48;
+            const white='#ffffff';
+
+            // Top text side
+            const t1=createSVG('text',{x:cx, y:cy - CELL_SIZE*0.4125, 'text-anchor':'middle', 'dominant-baseline':'central', 'font-size':fontSize, 'font-weight':'bold', fill:white, opacity:0.73});
+            t1.textContent=rolls[0];
+            parent.appendChild(t1);
+
+            // Bottom text side
+            const t2=createSVG('text',{x:cx, y:cy + CELL_SIZE*0.4125, 'text-anchor':'middle', 'dominant-baseline':'central', 'font-size':fontSize, 'font-weight':'bold', fill:white, opacity:0.73});
+            t2.textContent=rolls[1];
+            parent.appendChild(t2);
+
+            // Left text side
+            const t3=createSVG('text',{x:cx - CELL_SIZE*0.4125, y:cy, 'text-anchor':'middle', 'dominant-baseline':'central', 'font-size':fontSize, 'font-weight':'bold', fill:white, opacity:0.73});
+            t3.textContent=rolls[2];
+            parent.appendChild(t3);
+
+            // Right text side
+            const t4=createSVG('text',{x:cx + CELL_SIZE*0.4125, y:cy, 'text-anchor':'middle', 'dominant-baseline':'central', 'font-size':fontSize, 'font-weight':'bold', fill:white, opacity:0.73});
+            t4.textContent=rolls[3];
+            parent.appendChild(t4);
+
+
+            // Calculate modifier values
+            const plusVal = "+" + plusRoll(type, hasCity);
+            const minusVal = "-" + minusRoll(type, hasCity);
+            
+            // Positioning coordinates
+            const plusX = cx - CELL_SIZE * 0.25;
+            const plusY = cy - CELL_SIZE * 0.33; 
+            
+            const minusX = cx + CELL_SIZE * 0.25;
+            const minusY = cy + CELL_SIZE * 0.25; 
+
+            // Render + modifier text (Cyan, Bold)
+            const plusText = createSVG('text', {
+                x: plusX,
+                y: plusY,
+                'text-anchor': 'middle',
+                'dominant-baseline': 'central',
+                'font-size': fontSize, 
+                'font-weight': 'bold',
+                fill: '#00ffff', 
+                opacity: 0.75,
+                transform: `rotate(0, ${plusX}, ${plusY})` // Rotate if needed
+            });
+            plusText.textContent = plusVal;
+            parent.appendChild(plusText);
+
+            // Render - modifier text (Goldenrod, Bold)
+            const minusText = createSVG('text', {
+                x: minusX,
+                y: minusY,
+                'text-anchor': 'middle',
+                'dominant-baseline': 'central',
+                'font-size': fontSize, 
+                'font-weight': 'bold',
+                fill: '#daa520', 
+                opacity: 0.75,
+                transform: `rotate(0, ${minusX}, ${minusY})` // Rotate if needed
+            });
+            minusText.textContent = minusVal;
+            parent.appendChild(minusText);
+
+            // City star rating in upper-left quadrant center
+            if(hasCity){
+                const rating = (cellCityRating && cellCityRating[index]) ? cellCityRating[index] : 1;
+                const starX = cx - CELL_SIZE * 0.25;
+                const starY = cy - CELL_SIZE * 0.23; 
+                const outer = 13; 
+                for(let s=0;s<rating;s++){
+                    const offsetX = s * (outer * 2.2);
+                    createStar(parent, starX - offsetX, starY, outer, '#bffe3c');
+                }
+            }
+        }
+    }
+}
 
   // Main runner
   function runOnce(settings){
@@ -480,9 +647,15 @@
       else if(settings.doFields && roll < (cumulative += fieldChance)) { obj = createAsteroidField(master,cx,cy, rand(60,110)); typeTag='asteroid'; cellHasCity.push(false); cellCityRating.push(0); }
       else if(settings.doGas && roll < (cumulative += gasChance)) { obj = createGasGiant(master,cx,cy, rand(50,90), {shadow:settings.shadow}); typeTag='gasgiant'; cellHasCity.push(false); cellCityRating.push(0); }
       else if(settings.doBlackHoles && roll < (cumulative += blackHoleChance)) { obj = createBlackHole(master,cx,cy, rand(80,160)); typeTag='blackhole'; cellHasCity.push(false); cellCityRating.push(0); }
-      else { const res = createPlanet(master,cx,cy, rand(50,90), settings); typeTag='planet'; // createPlanet returns object with city info
-        cellHasCity.push(res.hasCity === true);
-        cellCityRating.push(res.cityRating || 0);
+      else { 
+      const res = createPlanet(master,cx,cy, rand(50,90), settings); typeTag='planet'; 
+      let hasCity = res.hasCity === true;
+        if (hasCity && Math.random() > 0.70) { // global fail chance - higher value means more survive
+            hasCity = false;
+        }
+        
+        cellHasCity.push(hasCity);
+        cellCityRating.push(hasCity ? (res.cityRating || 1) : 0);
       }
       cellTypes.push(typeTag);
     }
@@ -536,6 +709,8 @@
 
   // initial generate
   document.getElementById('generate').click();
+
+    //copyright spm2026
   </script>
 </body>
 </html>
